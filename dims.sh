@@ -2,18 +2,18 @@
 # Script para crear un data warehouse para análisis de cáncer de mama
 
 # Configuración
-DATASET="Breast_Cancer_Global_Dataset.csv"
 DB_NAME="breast_cancer_dwh"
 DB_USER="postgres" # Cambia esto según tu configuración
-PSQL_CMD="psql -U $DB_USER"
+DB_PASSWORD="1234"
+export PGPASSWORD=$DB_PASSWORD
+PSQL_CMD="sudo psql -h localhost -U $DB_USER"
 
 echo "Iniciando creación del Data Warehouse para análisis de cáncer de mama..."
 
 # Crear la base de datos
 echo "Creando base de datos $DB_NAME..."
-dropdb --if-exists $DB_NAME
-createdb $DB_NAME
-
+dropdb -h localhost -U $DB_USER --if-exists $DB_NAME
+createdb -h localhost -U $DB_USER $DB_NAME
 # Crear las tablas de dimensiones y hechos
 $PSQL_CMD -d $DB_NAME << EOF
 
@@ -87,7 +87,7 @@ echo "Cargando datos desde $DATASET..."
 
 # Convertir el CSV a formato psql-compatible si es necesario
 # (por ejemplo, si contiene encabezados o tiene formato incorrecto)
-cat $DATASET | tail -n +2 > temp_data.csv
+# cat $DATASET | tail -n +2 > temp_data.csv
 
 # Función para cargar datos en las tablas de dimensiones y obtener IDs
 $PSQL_CMD -d $DB_NAME << EOF
@@ -122,7 +122,7 @@ CREATE TEMP TABLE temp_data (
 );
 
 -- Cargar datos desde el archivo temporal
-COPY temp_data FROM '/mnt/c/Users/Andres/Downloads/Breast_Cancer_Global_Dataset.csv' DELIMITER ',' CSV;
+COPY temp_data FROM '/mnt/c/Users/Andres/Downloads/Breast_Cancer_Global_Dataset.csv' DELIMITER ',' CSV HEADER;
 
 -- Insertar datos en las dimensiones
 -- dim_country
