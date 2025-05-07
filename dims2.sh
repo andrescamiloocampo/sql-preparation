@@ -1,7 +1,5 @@
 #!/bin/bash
-# Script optimizado y corregido para DW de cáncer de mama
 
-# Configuración
 DB_NAME="breast_cancer_dwh"
 DB_USER="postgres"
 DB_PASSWORD="1234"
@@ -9,7 +7,6 @@ DATASET_PATH="/mnt/c/Users/Andres/Downloads/Breast_Cancer_Global_Dataset.csv"
 export PGPASSWORD=$DB_PASSWORD
 PSQL_CMD="psql -h localhost -U $DB_USER -v ON_ERROR_STOP=1"
 
-# Optimizar parámetros PostgreSQL
 echo "Optimizando parámetros de PostgreSQL..."
 $PSQL_CMD -d postgres <<EOF
 ALTER SYSTEM SET work_mem = '256MB';
@@ -20,12 +17,10 @@ ALTER SYSTEM SET max_parallel_workers_per_gather = 4;
 SELECT pg_reload_conf();
 EOF
 
-# Crear base de datos
 echo "Creando base de datos $DB_NAME..."
 $PSQL_CMD -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME"
 $PSQL_CMD -d postgres -c "CREATE DATABASE $DB_NAME"
 
-# Crear esquema optimizado
 echo "Creando estructura de tablas..."
 $PSQL_CMD -d $DB_NAME <<EOF
 -- Tablas de dimensiones con índices
@@ -111,7 +106,6 @@ CREATE TABLE fact_breast_cancer (
 );
 EOF
 
-# Crear índices después de crear las tablas
 echo "Creando índices..."
 $PSQL_CMD -d $DB_NAME <<EOF
 CREATE INDEX idx_country_name ON dim_country (country_name);
@@ -119,11 +113,9 @@ CREATE INDEX idx_demo_composite ON dim_demographics (median_age, education_level
 CREATE INDEX idx_health_factors ON dim_health_factors (obesity_rate, smoking_rate);
 EOF
 
-# Carga masiva optimizada
 echo "Cargando datos desde $DATASET_PATH..."
 $PSQL_CMD -d $DB_NAME -c "COPY temp_import FROM '$DATASET_PATH' DELIMITER ',' CSV HEADER"
 
-# Insertar datos en dimensiones y hechos
 echo "Procesando datos..."
 $PSQL_CMD -d $DB_NAME <<EOF
 BEGIN;
@@ -174,11 +166,9 @@ JOIN dim_healthcare h ON t.healthcare_expenditure = h.healthcare_expenditure AND
 
 COMMIT;
 
--- Optimización post-carga
 VACUUM ANALYZE;
 EOF
 
-# Crear vistas OLAP optimizadas
 echo "Creando vistas materializadas..."
 $PSQL_CMD -d $DB_NAME <<EOF
 CREATE MATERIALIZED VIEW mv_mortality_analysis AS
@@ -207,7 +197,21 @@ GROUP BY CUBE(obesidad, tabaquismo);
 
 CREATE INDEX idx_mv_risk ON mv_risk_factor_analysis (obesidad, tabaquismo);
 
--- Mantenimiento final
+CREATE MATERIALIZED VIEW mv_bc_overview AS
+SELECT 
+    c.region, 
+    c.hdi_category,
+    COUNT(*) AS countries,
+    AVG(fc.mortality_rate) AS avg_mortality
+FROM fact_breast_cancer fc
+JOIN dim_country c ON fc.country_id = c.country_id
+GROUP BY GROUPING SETS (
+    (c.region),
+    (c.hdi_category),
+    (c.region, c.hdi_category),
+    ()
+);
+
 REINDEX DATABASE $DB_NAME;
 EOF
 
